@@ -1,0 +1,24 @@
+#! /bin/sh
+
+RFIO=0
+
+while getopts "r" flag; do
+  case "$flag" in
+    r) RFIO=1;;
+  esac
+done
+
+file=${@:$OPTIND:1}
+
+if [ -z "$file" ]; then
+  echo "Usage: $0 [-r] folder"
+  exit 1
+fi
+
+input=`echo "$file" | sed 's/\/*$//'`;
+
+if [[ "$RFIO" == "1" ]]; then
+  rfdir $input | awk -F' ' '{ print $9;}' | xargs -I {} echo rfio://$input/{}
+else
+  rfdir $input | awk -F' ' '{ print $9;}' | xargs -I {} echo $input/{}
+fi
