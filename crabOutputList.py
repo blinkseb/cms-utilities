@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-import sys, os
+import os,sys
+from optparse import OptionParser
 from xml.etree.ElementTree import ElementTree
 from xml.parsers.expat import ExpatError
 
@@ -23,29 +24,33 @@ def readXMLPublish(tree):
 
   return True,p.text.strip(" \t\n\r");
 
-if (len(sys.argv) < 3):
-  exit("crabOutputList.py [crab_folder] [job_type] [appendRFIO=false] [checkForExistence=true]");
+parser = OptionParser()
+parser.add_option("", "--rfio", dest="rfio", action="store_true", help="Make URL compatible with RFIO protocol", default=False)
+parser.add_option("", "--xrootd",  action="store_true", dest="xrootd", default=False, help="Make URL compatible with XrootD protocol")
+parser.add_option("", "--check",  action="store_true", dest="check", default=False, help="Check if file exist")
+parser.add_option("", "--publish",  action="store_true", dest="publish", default=False, help="Analysis / Publish mode")
 
-input = sys.argv[1];
-job_type = sys.argv[2];
+(options, args) = parser.parse_args()
+
+input = args[0];
+job_type = "publish" if options.publish == True else "analysis"
 
 if (job_type != "analysis") and (job_type != "publish"):
   exit("Unknown job type %r. Must be either 'analysis' or 'publish'" % job_type);
 
-appendRFIO = False
-if (len(sys.argv) > 3):
-  appendRFIO = sys.argv[3] == "true"
+appendRFIO = options.rfio
+appendXROOTD = options.xrootd
   
 # if true, check with rfdir if the file exists
-checkRFIO = True
-if (len(sys.argv) > 4):
-  checkRFIO = sys.argv[4] != "false"
+checkRFIO = options.check
 
 isCERN = os.system("uname -n | grep cern &> /dev/null") == 0;
 if (isCERN):
   lfnPrefix = "/castor/cern.ch%s";
+  xrootdPrefix = ""
 else:
   lfnPrefix = "/dpm/in2p3.fr/home/cms/data%s";
+  xrootdPrefix = "root://lyogrid06.in2p3.fr/"
 
 if (not os.path.exists(input + "/res")):
   exit("'%s/res/' does not exists" % input);
@@ -74,6 +79,7 @@ for file in files:
       continue
 
     absoluteLFN = lfnPrefix % lfn;
+
     if (checkRFIO):
       exists = os.system("rfdir \"%s\" &> /dev/null" % absoluteLFN);
       if (exists != 0):
@@ -82,8 +88,11 @@ for file in files:
         continue;
     if (appendRFIO):
       print "rfio://%s" % (absoluteLFN)
+    elif appendXROOTD:
+      print xrootdPrefix + absoluteLFN
     else:
       print "%s" % (absoluteLFN)
+
   except IOError:
     sys.stderr.write("Warning: can't open '%s'\n" % xml)
     exitCode = 1
