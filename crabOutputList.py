@@ -32,6 +32,12 @@ parser.add_option("", "--publish",  action="store_true", dest="publish", default
 
 (options, args) = parser.parse_args()
 
+def checkForExistence(path):
+    #if options.rfio:
+        return os.system("/usr/bin/rfdir \"%s\" &> /dev/null" % path) == 0;
+    #else:
+        #return os.system("xrd lyogrid06.in2p3.fr existfile \"%s\" | grep \"exists\" &> /dev/null" % path) == 0
+
 input = args[0];
 job_type = "publish" if options.publish == True else "analysis"
 
@@ -55,13 +61,24 @@ else:
 if (not os.path.exists(input + "/res")):
   exit("'%s/res/' does not exists" % input);
 
+share_file = os.path.join(input, 'share', 'arguments.xml')
+tree = ElementTree()
+try:
+    tree.parse(share_file)
+    j = tree.findall('Job')
+    jobs = len(j)
+except:
+    sys.stderr.write("Error: can't retrieve the number of jobs in this task\n")
+    exit(1)
+
 path = "%s/res" % (input);
 files = os.listdir(path)
 
 if len(files) == 0:
-  exit(1)
+    exit(1)
 
 exitCode = 0
+good_jobs = 0
 for file in files:
   root, extension = os.path.splitext(file);
   if (extension != ".xml"):
@@ -81,11 +98,11 @@ for file in files:
     absoluteLFN = lfnPrefix % lfn;
 
     if (checkRFIO):
-      exists = os.system("rfdir \"%s\" &> /dev/null" % absoluteLFN);
-      if (exists != 0):
+      if not checkForExistence(absoluteLFN):
         sys.stderr.write("[%s] Error: file %s does not exists. Skipping it.\n" % (input, absoluteLFN));
         exitCode = 1
         continue;
+
     if (appendRFIO):
       print "rfio://%s" % (absoluteLFN)
     elif appendXROOTD:
@@ -93,11 +110,17 @@ for file in files:
     else:
       print "%s" % (absoluteLFN)
 
+    good_jobs = good_jobs + 1
+
   except IOError:
     sys.stderr.write("Warning: can't open '%s'\n" % xml)
     exitCode = 1
   except ExpatError:
     sys.stderr.write("Warning: malformed XML file '%s'\n" % xml);
     exitCode = 1
+
+if good_jobs != jobs:
+    sys.stderr.write("Error: missing jobs in task '%s'\n" % input)
+    exit(1)
 
 exit(exitCode)
